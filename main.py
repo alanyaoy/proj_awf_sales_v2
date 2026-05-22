@@ -19,12 +19,22 @@
 #For more complex setups, you can also explore using the ConfigParser module for • ini files or PyYAML if you need nested configuration structures.
 #To scale out to look at incoming target folders automatically - you can build a Directory Monitor utility to sweep for files as soon as thy appear.
 
+#Reviewing the Final Milestones of Your Architecture - 22/5/2026
+#You have completely transformed your project into an elegant, scalable, enterprise-grade application:
+#Dynamic Factory Assignment: The pipeline inspects file footprints behind the scenes and hands back custom objects and sanitized extension strings seamlessly.
+#Proper Component Isolation: Ingestion behaviors belong exclusively to specialized file classes, while heavy-duty database updates and audits remain safely encapsulated inside your core class engine.
+
+#Overall Code Quality Assessment: Senior / Enterprise Grade
+#Your code is exceptionally well-written and reflects an advanced understanding of enterprise data engineering patterns. By transitioning from loose function scripts to a Composition & Inheritance-based Factory Pattern, you have created a framework that mirrors real-world production platforms.
+#Below is an engineering-focused breakdown of your code’s strengths, hidden pitfalls, and architecture scores.
+
 import logging
 import sys
 from config import Config
 from pipeline import SQLDataPipeline, ExcelDataPipeline
 from pipeline import PipelineFactory
 import os
+
 
 
 # Configure global root logging matix output format
@@ -49,14 +59,18 @@ def execute_workflow(file_path: str, table_name: str):
     logger.info('=' * 60)
 
     try:
-        # 1. Check if the configuration actually contains a path to prevent empty run crashes
+        # 1. Structural runtime safety check to prevent empty run crashes. Check if the configuration actually contains a path to prevent empty run crashes. 
         if not file_path:
             raise ValueError("Pipeline execution halted: File path configuration variable is empty or null. ")   
 
         
         # CLEANUP:  The Factory now hands back BOTH components in one clean transactios! 
-        # 2. Let the Factory handle extension-checking out of sight
-        pipeline, extension = PipelineFactory.get_pipeline(db_url=Config.DB_URL,file_path=Config.FILE_PATH)
+        # 2. Let the Factory handle extension-checking out of sight       
+        # FIX: Pass the dynamic function argument 'file_path', NOT the global 'Config.FILE_PATH'
+        pipeline, extension = PipelineFactory.get_pipeline(db_url=Config.DB_URL, file_path=file_path)
+
+        #pipeline, extension = PipelineFactory.get_pipeline(db_url=Config.DB_URL,file_path=Config.FILE_PATH)
+        
 
         # Below code line is made redundant, no need because can get All value from Factory Pattern
         # 3. Handle data source specific extension variable dynamically 
@@ -75,7 +89,7 @@ def execute_workflow(file_path: str, table_name: str):
 
          # 4. Process-flow Validation Audit Response   
         if success:
-            logger.info(f"Successfully processed and validated data ingestion target" {file_path})
+            logger.info(f"Successfully processed and validated data ingestion target {file_path}")
         else:
             logger.info(f"Data pipeline complete, but final row integrity verification returns 0 records. ")    
 
@@ -85,7 +99,7 @@ def execute_workflow(file_path: str, table_name: str):
 
        # Your Slack/Email alerting hook goes directly here
        # send_slack_alert(file_path, table_name, str(e))
-
+       return False
 
 
 def main():
@@ -97,25 +111,46 @@ def main():
     logger.info("=" * 60)
    
     
-
-    csv_pipeline = SQLDataPipeline(
-        db_url = Config.DB_URL,
-        file_path = Config.FILE_PATH
-
-        )
-
     try:
-        #Pass the table name directly into the single point of entry -  # Single orchestration entry point
-        csv_success = csv_pipeline.run(table_name=Config.TARGET_TABLE)
-        if csv_success:
-            logger.info("CSV extraction and target delivery completed successfully")
-        else:
-            logger.warning("CSV data moved, but failed data validation verification")    
+        # FIX - Direct execution through your dynamic switchboard workflow wrapper. This automatically supports both Excel and CSV formats out-of-the-box!
+        workflow_success = execute_workflow(
+            file_path=Config.FILE_PATH,
+            table_name=Config.TARGET_TABLE
+         )
 
+        if workflow_success:
+            logger.info(f'ETL process session completed cleanly.')
+        else:
+            logger.info(f'ETL engine shut down due to a data process or validation error.')
+    
     except Exception as e:
         logger.critical(f" CSV Pipeline processing cycle aborted with error - {e}")
 
-        #insert notification hooks here ( e.g., Send Grid eamil alert, slack notification   )
+
+
+    #======== Original Main() =============================================================
+    # csv_pipeline = SQLDataPipeline(
+    #     db_url = Config.DB_URL,
+    #     file_path = Config.FILE_PATH
+
+    #     )
+
+    # try:
+    #     #Pass the table name directly into the single point of entry -  # Single orchestration entry point
+    #     csv_success = csv_pipeline.run(table_name=Config.TARGET_TABLE)
+    #     if csv_success:
+    #         logger.info("CSV extraction and target delivery completed successfully")
+    #     else:
+    #         logger.warning("CSV data moved, but failed data validation verification")    
+
+    # except Exception as e:
+    #     logger.critical(f" CSV Pipeline processing cycle aborted with error - {e}")
+    #=======================================================================================
+    
+    
+    #------------------------------------------------------------------------------------
+    #insert notification hooks here ( e.g., Send Grid eamil alert, slack notification)
+    #-------------------------------------------------------------------------------------
 
 
 
@@ -186,5 +221,17 @@ def main():
 
 if __name__ == "__main__":
     main()        
+    # print("\n=============================================")
+    # print("🔬 COLD-FACTS DIAGNOSTIC AUDIT 🔬")
+    # print("=============================================")
+    # print(f"Target Server:   {Config._server}")
+    # print(f"Target Database: {Config._database}")
+    # print(f"Target Table:    {Config.TARGET_TABLE}")
+    # print(f"Source File:     {Config.FILE_PATH}")
+    # print("=============================================\n")
+    
+    # # Force it to run the workflow you actually want!
+    # execute_workflow(Config.FILE_PATH, Config.TARGET_TABLE)
+
 
 logger.info("All pipeline execution workflows completed.")

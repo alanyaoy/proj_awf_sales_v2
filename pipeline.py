@@ -11,6 +11,10 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 import logging
 
+from config import Config
+from notifications import send_error_email
+
+
 
 #Import the structural timing decorator from your local workspace file 
 from decorators import log_execution_time           
@@ -87,6 +91,7 @@ class SQLDataPipeline:
             logger.critical(
                 f"pipeline execution engine crashed durinf processing: {e}"
                 )  
+            
             #raise the exception up to main.py to allow final runtime fa
             raise 
 
@@ -120,14 +125,51 @@ class SQLDataPipeline:
             self.df.columns = [str(c).strip().lower() for c in self.df.columns]
 
             #Structural tansformation :  Inject a unified batch metadata
-            self.df['processed_at']= pd.Timestamp.nwo()
+            #self.df['processed_at']= pd.Timestamp.now()
+            self.df['report_date']= pd.Timestamp.now()   
+
             logger.info('Panda system matrix data normalization routines completed successfully!')
         except Exception as e:
             logger.exception(f"Data manipultion sequence crashed during core transformation: {e}")    
             raise
 
-
     #3 -----------------------------------------------------------------------------------   
+    #3 ------------------New -----------------------------------------------------------------   
+    # @log_execution_time
+    # def load_to_sql(self, table_name: str):
+    #     '''Streams buffer memory blocks directly down into target database using stable Pandas core insertion'''
+
+    #     if self.df is None or self.df.empty:
+    #         logger.error(f"Database insertion aborted: No valid local in-memory dataset available")
+    #         return
+        
+    #     # 1. Strip the audit tracking column to match table expectations
+    #     if 'processed_at' in self.df.columns:
+    #         self.df = self.df.drop(columns=['processed_at'])
+            
+    #     try:
+
+
+    #         engine = create_engine(Config.DB_URL,fast_executemany= True)    
+    #         self.df.to_sql(table_name,
+    #                 schema='JDE_DB_ALAN',    # You have already include schema arguement if your table is not the default dbo schema
+    #                 con=engine,
+    #                 if_exists='replace',      #change to 'append' if needed
+    #                 index = False,
+    #                 chunksize=1_000          # Recommended for large datasets
+
+    #                 )
+                
+    #         logger.info(
+    #             f'Successfully loaded and committed dataframe array '
+    #             f'{len(self.df)} records into table: {table_name}'
+    #         )   
+    #     except Exception as e:
+    #         logger.exception(f'Database target data bulk storage mapping failure {e}')
+    #         raise
+
+    
+    #3 ----------------Old working Now - Yeah !-------------------------------------------------------------------   
     @log_execution_time
     def load_to_sql(self, table_name: str):
         '''Streams buffer memory blocks directly down into target database using SQLAlchemy'''
@@ -136,17 +178,36 @@ class SQLDataPipeline:
             logger.error(f"Database insertion aborted: No valid local in-memory dataset available")
             return
         
+        if 'processed_at' in self.df.columns:
+            self.df = self.df.drop(columns=['processed_at'])
+
+         # SIMPLE & FAST FIX: Automatically aligns data types and missing values cleanly
+        # This keeps your code brief while allowing fast_executemany to run at full speed!
+        self.df = self.df.convert_dtypes()
+        self.df = self.df.where(self.df.notna(), None)
+            
+        
         try:
             #Use begin() context manager to auto-commit when the code in/ for transaction auto-commit
             with self.engine.begin() as connection:
+
+                # FIX: Force the underlying pyodbc connection to utilize fast_executemany bulk copy.
+                # This completely bypasses the driver's internal buggy Unicode conversion buffers.
+               # connection.connection.fast_executemany = True
+
                 self.df.to_sql(
                     name= table_name,
-                    con=connection,
-                    if_exists='append',
+                    schema='JDE_DB_ALAN',  # <-- THIS IS CRITICAL FOR 'replace' TO WORK
+                    #con=connection,
+                    con=self.engine,
+                    if_exists='replace',
                     index= False,
                     chunksize = 1000        #buffers data over the wire in segment
 
                 )
+
+                # FORCE SQL SERVER TO FLUSH DATA TO DISK IMMEDIATELY:
+                connection.commit() 
                 
             logger.info(
                     f'Successfully loaded and committed dataframe array'
@@ -154,10 +215,46 @@ class SQLDataPipeline:
                   )   
         except Exception as e:
             logger.exception(f'Database target data bulk storage mapping failure {e}')
+
+            # 2. CALL THE STANDALONE FUNCTION HERE (No "self." needed)
+            send_error_email(error_message=str(e), table_name=table_name)
+
             raise
 
 
-    #4 -----------------------------------------------------------------------------------   
+    #4 ----- new  ------------------------------------------------------------------------------
+    @log_execution_time
+    def verify_load(self, table_name: str) -> bool:
+        ''' Post-load analytical check verifying that data rows are accessible from the target table.'''
+        try:
+            with self.engine.connect() as connection:
+                # 1. Structural Fix: Match your targeted database schema explicitly
+                query = text(f"SELECT COUNT(*) FROM JDE_DB_ALAN.{table_name}")
+                
+                # 2. Logic Fix: Extract the scalar integer value out of the query block
+                row_count = connection.execute(query).scalar()
+            
+            # Evaluate the raw count instead of checking if the dataframe is empty
+            records_exist = int(row_count) > 0
+            
+            if records_exist:
+                logger.info(f"Verification success: Confirmed {row_count} records inside table: JDE_DB_ALAN.{table_name}")
+            else:
+                logger.warning(f"Verification warning: Target table JDE_DB_ALAN.{table_name} is empty.")
+                
+            return records_exist
+        
+        except Exception as e:
+            logger.exception(f"Post-execution verification check failed on load validation: {e}")
+            raise # Kept your 'raise' pattern intact to bubble up to main.py execution loop
+
+
+
+    #4 ----- old ------------------------------------------------------------------------------   
+    #The Bug: Your SQL query executes a SELECT COUNT(*) FROM table.
+    #The Problem: Even if your destination database table contains 0 rows, the database engine will still return an active dataset containing a single row with the number 0. Because pandas captures this single row, test_df.empty will always evaluate to False (meaning records_exist evaluates to True).
+    #The Result: Your verification step will incorrectly report a successful load even if the target table is completely empty.
+    """
     @log_execution_time
     def verify_load(self, table_name: str) -> bool:
         ''' Post-load analytical check verifying that data rows are accessible from the target table.'''
@@ -166,7 +263,7 @@ class SQLDataPipeline:
             with self.engine.connect() as connection:
                 query = text(
                            # f"Select top 5 * from {table_name}"
-                              f"Select count(*) from {table_name}"
+                              f"Select count(*) from JDE_DB_ALAN.{table_name}"
                             )
                 test_df = pd.read_sql(
                             query,
@@ -192,7 +289,8 @@ class SQLDataPipeline:
                     f"on load validation: {e}"
                     )
         raise
-
+    """    
+    
 
 
 # =====================================================================
@@ -225,6 +323,7 @@ class ExcelDataPipeline(SQLDataPipeline):
       
        except FileNotFoundError as e:
         logger.error(f"Critical operational error: Target binary Excel -- {e}")   
+        raise
        
        except Exception as e:
         logger.exception(f"Unexpected Excel parsing exception -- {e}")
@@ -265,11 +364,16 @@ class PipelineFactory:
     """ Inspect file extensions to return the correct instantiated pipeline pipeline object. """
 
     @staticmethod
-    def get_pipeline(db_url: str, file_path: str) -> SQLDataPipeline:
+    def get_pipeline(db_url: str, file_path: str) -> tuple[SQLDataPipeline, str]:
 
-        #Extract the extension (e.g., '.csv' or '.xlsx') and force lowercase
-        # 1. Extract the extension once, right here inside the switchboard
-        _,extension = os.path.splitext(file_path.lower())
+        '''Inspects string signatures and instantiates the correct subclass asset. Returns a tuple matching: (PipelineInstance, ExtensionString) '''        
+        '''Extract the extension (e.g., '.csv' or '.xlsx') and force lowercase '''
+        if not file_path:
+            raise ValueError("Factory initialization failed: Target file path is empty or null.")
+    
+        # 1. Extract the extension once, right here inside the switchboard and Strip out the leading dot (e.g., '.xlsx' becomes 'xlsx') to ensure matching profiles
+        _,raw_extension = os.path.splitext(file_path.lower())
+        extension = raw_extension.replace(',','').strip()
 
         # 2. Build the correct object instance based on that extension
         if extension in ['xlsx','xls']:

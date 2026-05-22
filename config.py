@@ -12,13 +12,43 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Config:
+
     """ Central configuration class parsing system environment credentials """
-    _server = os.getenv('DB_SERVER')
-    _database = os.getenv('DB_NAME')
-    _user = os.getenv('DB_USER')
-    _password= os.getenv('DB_PASS')
-    _sqltbl= os.getenv('SQL_TBL_NAME')
-    _csvpath = os.getenv('CSV_PATH')
+    # FIX: Added a default fallback string '' so calling .strip() never crashes on missing keys
+    _server = os.getenv('DB_SERVER', '').strip()
+    _database = os.getenv('DB_NAME', '').strip()
+    _user = os.getenv('DB_USER', '').strip()
+    _password = os.getenv('DB_PASS', '').strip()
+    _sqltbl = os.getenv('SQL_TBL_NAME', '').strip()
+    _csvpath = os.getenv('CSV_PATH', '').strip()
+    _sheetname = os.getenv('excel_sheet_name', 'Sheet1').strip()
+
+    # URL encode the driver explicitly
+    _driver_param = urllib.parse.quote_plus("ODBC Driver 17 for SQL Server")
+
+    # Native connection string pattern
+        # FIX: Added forced encoding parameters to resolve the internal driver conversion crash
+    DB_URL = (
+        f"mssql+pyodbc://{_server}/{_database}?"
+        f"trusted_connection=yes&"
+        f"driver={_driver_param}&"
+        f"encoding=utf-8&"
+        f"unicode_error=ignore"
+    )
+    
+    FILE_PATH = _csvpath
+    TARGET_TABLE = _sqltbl
+    SHEET_NAME = _sheetname
+
+
+    '''
+    """ Central configuration class parsing system environment credentials """
+    _server = os.getenv('DB_SERVER').strip()
+    _database = os.getenv('DB_NAME').strip()
+    _user = os.getenv('DB_USER').strip()
+    _password= os.getenv('DB_PASS').strip()
+    _sqltbl= os.getenv('SQL_TBL_NAME').strip()
+    _csvpath = os.getenv('CSV_PATH').strip()
 
     # New: Pull an optional sheet name from .env, defaulting to 'Sheet1' if missing
     _sheetname = os.getenv('excel_sheet_name', 'Sheet1')
@@ -27,21 +57,23 @@ class Config:
 
     #Safely escape specialized password Symbols (@, #, !, etc. ) for SQLAlchemy
     _escaped_params = urllib.parse.quote_plus(
-        f"DRIVER={{ ODBC Driver 17 for SQL SERVER}};"
-        f"SERVER = {_server};"
-        f"DATABASE={_database};"
+        f"DRIVER={{ODBC Driver 17 for SQL Server}};"
+        f"server={_server};"
+        f"database={_database};"
         #f"UID={_user};"
         #f"PWD={_password};"
         #"ENCRYPT=yes;"
         #"TrustServerCertificate=yes;"
-        "Trusted_connections=yes;"
+        "Trusted_Connections=yes;"
     )
 
     #Global public endpoint utilized by main.py execution block
-    DB_URL = f"mssql+pyodbc:///odbc_connect={_escaped_params}"
+    DB_URL = f"mssql+pyodbc:///?odbc_connect={_escaped_params}"
     #FILE_PATH = os.getenv('CSV_PATH')
     #TARGET_TABLE = os.getenv('TARGET_TABEL','my_default_table')
     FILE_PATH = _csvpath
     TARGET_TABLE = _sqltbl
 
     SHEET_NAME =_sheetname          #Clean variable entry point
+
+    '''
