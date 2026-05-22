@@ -19,7 +19,7 @@
 #For more complex setups, you can also explore using the ConfigParser module for • ini files or PyYAML if you need nested configuration structures.
 #To scale out to look at incoming target folders automatically - you can build a Directory Monitor utility to sweep for files as soon as thy appear.
 
-#22/5/2026
+#22/05/2026
 #Reviewing the Final Milestones of Your Architecture 
 #You have completely transformed your project into an elegant, scalable, enterprise-grade application:
 #Dynamic Factory Assignment: The pipeline inspects file footprints behind the scenes and hands back custom objects and sanitized extension strings seamlessly.
