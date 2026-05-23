@@ -185,7 +185,19 @@ class SQLDataPipeline:
         # This keeps your code brief while allowing fast_executemany to run at full speed!
         self.df = self.df.convert_dtypes()
         self.df = self.df.where(self.df.notna(), None)
-            
+
+
+        #debug check: Let's us see if the dataframe actully has rows right here     
+        print(f"--- Debug: Dataframe shape is {self.df.shape} ---")
+        num= self.df.head(2)
+        print(f"{num:_}")
+
+        #create a new df and Apply underscore formatting to the column 'Large_num' - This transformation turns your numbers into text (strings). Once you run this line, you can no longer perform math operations (like addition or averaging) on this column.
+        #df = pd.DataFrame({'large_num': [1000000, 2500000, 3750000]})
+        #df['large_num'] = df['large_num'].apply(lambda x: f"{x:_}"
+
+        # Format the display with underscores - Preserves Math: The underlying values remain int or float. You can still run df['large_num'].sum() or df.describe().
+        #df.style.format({'large_num': '{:_}'})
         
         try:
             #Use begin() context manager to auto-commit when the code in/ for transaction auto-commit
