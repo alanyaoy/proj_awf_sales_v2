@@ -189,9 +189,33 @@ class SQLDataPipeline:
 
         #debug check: Let's us see if the dataframe actully has rows right here     
         print(f"--- Debug: Dataframe shape is {self.df.shape} ---")
-        num= self.df.head(2)
-        print(f"{num:_}")
+        num= self.df.head(23)           # column 23 is 'reorder_qty_max'
+                                        #The function self.df.head(2) does not pull out a single row. Instead, it creates a brand new table (DataFrame) containing the top two rows of your data, along with all of its original columns and headers.
+                                        #Because num is still a full table object, Python gets confused when you try to apply a number format to it.
+        # Below will not work
+        #print(f"{num:_}")
 
+        #1. This will work - # Drop the ":_" modifier entirely to let pandas print the table layout
+        print(num)
+
+        #2. Or Extracts a single raw number from the dataframe
+        single_value = self.df.iloc[1, 23] 
+        print(f"{single_value:_}")
+
+        #3. Or Select the 2nd column (index 1) and map the underscore format to every row
+        #self.df.iloc[:, 23] = self.df.iloc[:, 23].map('{:_}'.format)       # error
+        self.df.iloc[:, 23] = self.df.iloc[:, 23].fillna(0).map('{:_}'.format)
+        # Now print the head of the dataframe to see the formatted column
+        print(self.df.head(23))
+
+        #4-1.  Create a temporary display column without touching the original dataframe
+        preview = self.df.iloc[:, 23].fillna(0).map('{:_}'.format)
+        # 4-2. Print the temporary preview to your console
+        print(preview.head(23))
+        # Your original self.df remains 100% clean and ready for SQL!
+
+
+        
         #create a new df and Apply underscore formatting to the column 'Large_num' - This transformation turns your numbers into text (strings). Once you run this line, you can no longer perform math operations (like addition or averaging) on this column.
         #df = pd.DataFrame({'large_num': [1000000, 2500000, 3750000]})
         #df['large_num'] = df['large_num'].apply(lambda x: f"{x:_}"
@@ -385,7 +409,7 @@ class PipelineFactory:
     
         # 1. Extract the extension once, right here inside the switchboard and Strip out the leading dot (e.g., '.xlsx' becomes 'xlsx') to ensure matching profiles
         _,raw_extension = os.path.splitext(file_path.lower())
-        extension = raw_extension.replace(',','').strip()
+        extension = raw_extension.replace('.','').strip()
 
         # 2. Build the correct object instance based on that extension
         if extension in ['xlsx','xls']:

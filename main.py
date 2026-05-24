@@ -116,6 +116,7 @@ def main():
         # FIX - Direct execution through your dynamic switchboard workflow wrapper. This automatically supports both Excel and CSV formats out-of-the-box!
         workflow_success = execute_workflow(
             file_path=Config.FILE_PATH,
+            #file_path=Config.get_file_path()
             table_name=Config.TARGET_TABLE
          )
 

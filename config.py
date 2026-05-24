@@ -21,6 +21,7 @@ class Config:
     _password = os.getenv('DB_PASS', '').strip()
     _sqltbl = os.getenv('SQL_TBL_NAME', '').strip()
     _csvpath = os.getenv('CSV_PATH', '').strip()
+    _excelpath= os.getenv('EXCEL_PATH','').strip()
     _sheetname = os.getenv('excel_sheet_name', 'Sheet1').strip()
 
     # URL encode the driver explicitly
@@ -36,7 +37,28 @@ class Config:
         f"unicode_error=ignore"
     )
     
-    FILE_PATH = _csvpath
+    #FILE_PATH = _csvpath
+
+
+
+ 
+    if _excelpath:
+        FILE_PATH = _excelpath
+    elif _csvpath:
+        FILE_PATH = _csvpath
+    else:
+        FILE_PATH =''
+        
+
+    # @classmethod
+    # def get_file_path(cls)-> str:
+    #     if cls._excelpath:
+    #         return cls._excelpath
+    #     elif cls._csvpath:
+    #         return = cls._csvpath
+    #     else:
+    #         return ''
+
     TARGET_TABLE = _sqltbl
     SHEET_NAME = _sheetname
 
